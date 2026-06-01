@@ -59,7 +59,10 @@ export const BRANDS = [
   "WiseTech Global",
   "WiseTech Academy",
   "e2open",
-] as const;
+  "Blume",
+  "BorderWise",
+  "No brand",
+  ] as const;
 
 export const CONTENT_TYPES = [
   "Web",
