@@ -1,23 +1,24 @@
-# Design PM — Outlook add-in
+# Waypoint — Outlook add-in
 
-Reads the open Outlook message and creates a project in your Design PM JSONBin
-in one click. Pairs with the [Design PM React app](../project%20manangement%20tool/).
+Reads the open Outlook message and creates a project in Waypoint in one click.
+Pairs with the [Waypoint React app](../design-pm/) and writes to the same
+shared Firebase project.
 
 ## What it does
 
-- Adds a "Brief to Design PM" button to the Outlook ribbon on read messages.
+- Adds a "Brief to Waypoint" button to the Outlook ribbon on read messages.
 - The task pane pre-fills a project from the email:
   - **Title** ← subject
   - **Overview** ← body (truncated to 600 chars)
-  - **Owner** ← sender name / email
+  - **Client** ← sender name / email
   - **Commenced** ← today
   - **Due date** ← best-effort parse of "due by …", "deadline …", ISO dates, dd/mm/yyyy
   - **Priority** ← detects "urgent", "asap", "important", "low priority" etc.
   - **Brief URL** ← first http(s) link in the body
-  - **Assignee / Brand / Content type** ← dropdowns sourced live from the workspace bin
-- One click writes the new project into the same JSONBin that the React app reads,
-  so it appears in everyone's Design PM immediately. The project is flagged with
-  `source: "outlook"`.
+  - **Assignee / Brand / Content type** ← dropdowns sourced live from Firestore
+- One click writes the new project into the same Firebase project the React
+  app reads, so it appears in everyone's Waypoint immediately. The project is
+  flagged with `source: "outlook"`.
 
 ## Architecture
 
@@ -37,11 +38,12 @@ atomic append, so this is last-write-wins — fine for a team of nine.
 
 ## Local development
 
-Prereqs: Node 20+, Outlook desktop or Outlook on the web, a JSONBin bin
-already initialised by the React app.
+Prereqs: Node 20+, Outlook desktop or Outlook on the web. The add-in writes
+straight to the shared Firebase project that backs the main Waypoint app — no
+per-user config needed.
 
 ```bash
-cd design-pm-outlook-addin
+cd waypoint-outlook-addin
 npm install
 npm run certs:install   # one-time: installs a trusted CA cert for localhost
 npm run manifest:dev    # writes manifest.dev.xml pointing at https://localhost:3000
@@ -70,8 +72,8 @@ npm run manifest:validate
 1. Go to **File → Manage Add-ins** (opens browser).
 2. Same flow as above.
 
-The **Design PM** group with **Brief to Design PM** appears on the ribbon when
-viewing an email. Click it → enter your JSONBin bin ID + master key → done.
+The **Waypoint** group with **Brief to Waypoint** appears on the ribbon when
+viewing an email. Click it → the form pre-fills from the message → submit.
 
 ### Troubleshooting
 
@@ -86,10 +88,10 @@ viewing an email. Click it → enter your JSONBin bin ID + master key → done.
 
 ## Deploying to GitHub Pages
 
-1. Push this folder to a GitHub repo (e.g. `design-pm-outlook-addin`).
+1. Push this folder to a GitHub repo (e.g. `waypoint-outlook-addin`).
 2. In repo **Settings → Pages**, set **Source: GitHub Actions**.
 3. Push to `main`. The `.github/workflows/deploy.yml` workflow:
-   - Builds the site with `VITE_BASE=/design-pm-outlook-addin/`.
+   - Builds the site with `VITE_BASE=/waypoint-outlook-addin/`.
    - Writes `manifest.prod.xml` with `BASE_URL=https://<owner>.github.io/<repo>`.
    - Publishes everything to Pages.
 4. After deploy, download `manifest.prod.xml` from the deployed site

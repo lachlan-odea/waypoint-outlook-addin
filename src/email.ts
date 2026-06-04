@@ -1,5 +1,5 @@
 // Pulls fields off the current Outlook message and best-effort-parses them
-// into Design PM project defaults.
+// into Waypoint project defaults.
 
 import type { Priority } from "./types";
 

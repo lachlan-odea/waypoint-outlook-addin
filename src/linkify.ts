@@ -1,6 +1,6 @@
 // Mirrors the main app's LinkifiedText regex (sans @mentions, which the
 // add-in doesn't need) so the preview matches what users will see in
-// Design PM after submitting.
+// Waypoint after submitting.
 
 const TLDS = [
   "co.uk", "co.nz", "co.jp", "co.kr",

@@ -3,44 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Design PM — Outlook</title>
+    <title>Waypoint — Outlook</title>
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="app">
       <header class="header">
-        <div class="brand">Design&nbsp;PM</div>
-        <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+        <div class="brand">Waypoint</div>
       </header>
 
       <main id="view-loading" class="view">
         <p class="muted">Loading…</p>
-      </main>
-
-      <main id="view-settings" class="view hidden">
-        <h2>Storage</h2>
-        <p class="muted small">
-          Paste your JSONBin bin ID and master key. These live in this add-in's roaming
-          settings, synced per Outlook user.
-        </p>
-        <label class="field">
-          <span>Bin ID</span>
-          <input id="cfg-bin-id" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Master key (X-Master-Key)</span>
-          <input id="cfg-api-key" type="password" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Access key (optional)</span>
-          <input id="cfg-access-key" type="password" autocomplete="off" />
-        </label>
-        <p id="settings-error" class="error hidden"></p>
-        <div class="row-end">
-          <button id="settings-test" class="ghost">Test connection</button>
-          <button id="settings-save" class="primary">Save</button>
-        </div>
       </main>
 
       <main id="view-form" class="view hidden">

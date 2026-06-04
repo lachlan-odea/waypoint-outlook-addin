@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Office Add-in manifest for Design PM.
+  Office Add-in manifest for Waypoint.
   The {{BASE_URL}} placeholder is replaced by `npm run build:manifest`.
   For local sideloading, run `npm run manifest:dev` (writes a manifest pointed at https://localhost:3000).
   For GitHub Pages, run `npm run manifest:prod` (uses values from manifest.prod.env).
@@ -14,10 +14,10 @@
 
   <Id>2e5f1a6e-9d28-4f2c-9c2f-2a9c1b3f5d10</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Design PM</ProviderName>
+  <ProviderName>Waypoint</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Design PM" />
-  <Description DefaultValue="Convert this email into a Design PM project." />
+  <DisplayName DefaultValue="Waypoint" />
+  <Description DefaultValue="Convert this email into a Waypoint project." />
   <IconUrl DefaultValue="{{BASE_URL}}/icons/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="{{BASE_URL}}/icons/icon-128.png" />
   <SupportUrl DefaultValue="{{BASE_URL}}/" />
@@ -95,11 +95,11 @@
         <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}/index.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel" DefaultValue="Design PM" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Brief to Design PM" />
+        <bt:String id="GroupLabel" DefaultValue="Waypoint" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Brief to Waypoint" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Convert this email into a Design PM project." />
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Convert this email into a Waypoint project." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

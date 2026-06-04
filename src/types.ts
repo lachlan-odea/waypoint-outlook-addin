@@ -27,30 +27,17 @@ export type Project = {
   id: string;
   title: string;
   overview: string;
-  owner: string;
   client: string;
   brand: string;
   contentType: string;
   briefUrl: string;
   dueDate: string;
   priority: Priority;
-  assigneeId: string | null;
+  assigneeIds: string[];
   milestones: Milestone[];
   comments: Comment[];
   createdAt: string;
   source?: "manual" | "outlook";
-};
-
-export type Workspace = {
-  designers: Designer[];
-  projects: Project[];
-  currentDesignerId: string;
-};
-
-export type JsonBinConfig = {
-  binId: string;
-  apiKey: string;
-  accessKey?: string;
 };
 
 export const BRANDS = [
@@ -62,7 +49,7 @@ export const BRANDS = [
   "Blume",
   "BorderWise",
   "No brand",
-  ] as const;
+] as const;
 
 export const CONTENT_TYPES = [
   "Web",

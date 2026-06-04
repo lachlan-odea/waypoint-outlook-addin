@@ -1,41 +1,27 @@
 import "./styles.css";
-import { isConfigured, loadConfig, saveConfig } from "./settings";
-import { appendProject, fetchWorkspace, MOCK_BIN_ID } from "./jsonbin";
+import { ensureSignedIn } from "./firebase";
+import { addProject, loadDesigners } from "./firestore";
 import { readCurrentEmail, type EmailContext } from "./email";
 import {
   BRANDS,
   CONTENT_TYPES,
   type Designer,
-  type JsonBinConfig,
   type Priority,
   type Project,
-  type Workspace,
 } from "./types";
 import { extractLinks } from "./linkify";
 
-let config: JsonBinConfig = { binId: "", apiKey: "", accessKey: "" };
-let workspace: Workspace | null = null;
+let designers: Designer[] = [];
 let email: EmailContext | null = null;
 
 Office.onReady(async () => {
-  config = loadConfig();
   bindUi();
-  if (!isConfigured(config)) {
-    showView("settings");
-    return;
-  }
-  await bootForm();
+  await boot();
 });
 
 function bindUi() {
-  $("#settings-btn")!.addEventListener("click", () => {
-    populateSettingsForm();
-    showView("settings");
-  });
-  $("#settings-save")!.addEventListener("click", onSettingsSave);
-  $("#settings-test")!.addEventListener("click", onSettingsTest);
   $("#form-reset")!.addEventListener("click", () => {
-    if (email && workspace) fillForm(email, workspace);
+    if (email) fillForm(email, designers);
   });
   $("#form-submit")!.addEventListener("click", onSubmit);
   $("#f-overview")!.addEventListener("input", updateOverviewPreview);
@@ -68,21 +54,21 @@ function updateOverviewPreview() {
   });
 }
 
-async function bootForm() {
+async function boot() {
   showView("loading");
   try {
-    [workspace, email] = await Promise.all([fetchWorkspace(config), readCurrentEmail()]);
-    fillForm(email, workspace);
+    await ensureSignedIn();
+    [designers, email] = await Promise.all([loadDesigners(), readCurrentEmail()]);
+    fillForm(email, designers);
     showView("form");
   } catch (err) {
-    showSettingsError(formatError(err));
-    populateSettingsForm();
-    showView("settings");
+    showFormError(formatError(err));
+    showView("form");
   }
 }
 
-function fillForm(ctx: EmailContext, ws: Workspace) {
-  populateAssignees(ws.designers);
+function fillForm(ctx: EmailContext, ds: Designer[]) {
+  populateAssignees(ds);
   populateBrands();
   populateContentTypes();
 
@@ -106,7 +92,7 @@ function fillForm(ctx: EmailContext, ws: Workspace) {
   let meId = "";
   if (myEmail) {
     const handle = myEmail.split("@")[0].replace(/[._]/g, " ");
-    const match = ws.designers.find((d) => d.name.toLowerCase().includes(handle));
+    const match = ds.find((d) => d.name.toLowerCase().includes(handle));
     if (match) meId = match.id;
   }
   setVal("f-assignee", meId);
@@ -115,11 +101,11 @@ function fillForm(ctx: EmailContext, ws: Workspace) {
   setBanner(null);
 }
 
-function populateAssignees(designers: Designer[]) {
+function populateAssignees(ds: Designer[]) {
   const sel = el<HTMLSelectElement>("f-assignee");
   sel.innerHTML = "";
   sel.appendChild(option("", "— Unassigned —"));
-  designers.forEach((d) => sel.appendChild(option(d.id, d.name)));
+  ds.forEach((d) => sel.appendChild(option(d.id, d.name)));
 }
 
 function populateBrands() {
@@ -148,68 +134,24 @@ function populateContentTypes() {
   });
 }
 
-function populateSettingsForm() {
-  setVal("cfg-bin-id", config.binId);
-  setVal("cfg-api-key", config.apiKey);
-  setVal("cfg-access-key", config.accessKey ?? "");
-  showSettingsError(null);
-}
-
-async function onSettingsSave() {
-  const next: JsonBinConfig = {
-    binId: getVal("cfg-bin-id").trim(),
-    apiKey: getVal("cfg-api-key").trim(),
-    accessKey: getVal("cfg-access-key").trim() || undefined,
-  };
-  const mock = next.binId.toLowerCase() === MOCK_BIN_ID;
-  if (!next.binId || (!mock && !next.apiKey)) {
-    showSettingsError("Bin ID and master key are required.");
-    return;
-  }
-  if (mock) next.apiKey = next.apiKey || "mock";
-  try {
-    await saveConfig(next);
-    config = next;
-    await bootForm();
-  } catch (err) {
-    showSettingsError(formatError(err));
-  }
-}
-
-async function onSettingsTest() {
-  showSettingsError(null);
-  const trial: JsonBinConfig = {
-    binId: getVal("cfg-bin-id").trim(),
-    apiKey: getVal("cfg-api-key").trim(),
-    accessKey: getVal("cfg-access-key").trim() || undefined,
-  };
-  try {
-    await fetchWorkspace(trial);
-    showSettingsError("✓ Connected. Bin looks good.");
-  } catch (err) {
-    showSettingsError(formatError(err));
-  }
-}
-
 async function onSubmit() {
-  if (!workspace) return;
   const title = getVal("f-title").trim();
   if (!title) {
     showFormError("Title is required.");
     return;
   }
+  const assigneeId = getVal("f-assignee");
   const project: Project = {
     id: `p-${Date.now()}`,
     title,
     overview: getVal("f-overview").trim(),
-    owner: "",
     client: getVal("f-client").trim(),
     brand: getVal("f-brand").trim(),
     contentType: getVal("f-area") === "__other__" ? "" : getVal("f-area"),
     briefUrl: getVal("f-brief").trim(),
     dueDate: getVal("f-due"),
     priority: getVal("f-priority") as Priority,
-    assigneeId: getVal("f-assignee") || null,
+    assigneeIds: assigneeId ? [assigneeId] : [],
     milestones: [],
     comments: [],
     createdAt: getVal("f-commenced")
@@ -221,8 +163,8 @@ async function onSubmit() {
   setSubmitting(true);
   showFormError(null);
   try {
-    workspace = await appendProject(config, project);
-    setBanner(`✓ Added "${project.title}" to Design PM.`);
+    await addProject(project);
+    setBanner(`✓ Added "${project.title}" to Waypoint.`);
   } catch (err) {
     showFormError(formatError(err));
   } finally {
@@ -236,23 +178,12 @@ function setSubmitting(busy: boolean) {
   btn.textContent = busy ? "Adding…" : "Add project";
 }
 
-function showView(name: "loading" | "settings" | "form") {
-  ["loading", "settings", "form"].forEach((n) => {
+function showView(name: "loading" | "form") {
+  ["loading", "form"].forEach((n) => {
     const node = document.getElementById(`view-${n}`);
     if (!node) return;
     node.classList.toggle("hidden", n !== name);
   });
-}
-
-function showSettingsError(msg: string | null) {
-  const node = document.getElementById("settings-error")!;
-  if (!msg) {
-    node.classList.add("hidden");
-    node.textContent = "";
-    return;
-  }
-  node.classList.remove("hidden");
-  node.textContent = msg;
 }
 
 function showFormError(msg: string | null) {
