@@ -1,17 +1,21 @@
 import "./styles.css";
 import { ensureSignedIn } from "./firebase";
-import { addProject, loadDesigners } from "./firestore";
+import { addProject, loadDesigners, loadWorkspaces } from "./firestore";
 import { readCurrentEmail, type EmailContext } from "./email";
 import {
   BRANDS,
   CONTENT_TYPES,
+  DEFAULT_WORKSPACE_ID,
+  SEED_WORKSPACES,
   type Designer,
   type Priority,
   type Project,
+  type Workspace,
 } from "./types";
 import { extractLinks } from "./linkify";
 
 let designers: Designer[] = [];
+let workspaces: Workspace[] = [];
 let email: EmailContext | null = null;
 
 Office.onReady(async () => {
@@ -21,7 +25,7 @@ Office.onReady(async () => {
 
 function bindUi() {
   $("#form-reset")!.addEventListener("click", () => {
-    if (email) fillForm(email, designers);
+    if (email) fillForm(email, designers, workspaces);
   });
   $("#form-submit")!.addEventListener("click", onSubmit);
   $("#f-overview")!.addEventListener("input", updateOverviewPreview);
@@ -58,8 +62,16 @@ async function boot() {
   showView("loading");
   try {
     await ensureSignedIn();
-    [designers, email] = await Promise.all([loadDesigners(), readCurrentEmail()]);
-    fillForm(email, designers);
+    [designers, workspaces, email] = await Promise.all([
+      loadDesigners(),
+      loadWorkspaces(),
+      readCurrentEmail(),
+    ]);
+    // Fall back to the seed list if Firestore returned nothing — keeps the
+    // dropdown populated even before the main Waypoint app has run its
+    // first-boot seeder.
+    if (workspaces.length === 0) workspaces = SEED_WORKSPACES;
+    fillForm(email, designers, workspaces);
     showView("form");
   } catch (err) {
     showFormError(formatError(err));
@@ -67,8 +79,9 @@ async function boot() {
   }
 }
 
-function fillForm(ctx: EmailContext, ds: Designer[]) {
+function fillForm(ctx: EmailContext, ds: Designer[], ws: Workspace[]) {
   populateAssignees(ds);
+  populateWorkspaces(ws);
   populateBrands();
   populateContentTypes();
 
@@ -85,6 +98,7 @@ function fillForm(ctx: EmailContext, ds: Designer[]) {
   setVal("f-brand", ctx.detectedBrand ?? "");
   setVal("f-area", "");
   setVal("f-brief", ctx.firstUrl ?? "");
+  setVal("f-workspace", DEFAULT_WORKSPACE_ID);
 
   // Default assignee: signed-in user from the workspace if their name matches
   // the local part of their email, otherwise leave unassigned.
@@ -107,6 +121,13 @@ function populateAssignees(ds: Designer[]) {
   sel.appendChild(option("", "— Unassigned —"));
   const sorted = ds.slice().sort((a, b) => a.name.localeCompare(b.name));
   sorted.forEach((d) => sel.appendChild(option(d.id, d.name)));
+}
+
+function populateWorkspaces(ws: Workspace[]) {
+  const sel = el<HTMLSelectElement>("f-workspace");
+  sel.innerHTML = "";
+  const sorted = ws.slice().sort((a, b) => a.name.localeCompare(b.name));
+  sorted.forEach((w) => sel.appendChild(option(w.id, w.name)));
 }
 
 function populateBrands() {
@@ -142,8 +163,10 @@ async function onSubmit() {
     return;
   }
   const assigneeId = getVal("f-assignee");
+  const workspaceId = getVal("f-workspace") || DEFAULT_WORKSPACE_ID;
   const project: Project = {
     id: `p-${Date.now()}`,
+    workspaceId,
     title,
     overview: getVal("f-overview").trim(),
     client: getVal("f-client").trim(),

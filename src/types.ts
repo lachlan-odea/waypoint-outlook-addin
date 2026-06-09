@@ -25,6 +25,7 @@ export type Comment = {
 
 export type Project = {
   id: string;
+  workspaceId: string;
   title: string;
   overview: string;
   client: string;
@@ -39,6 +40,22 @@ export type Project = {
   createdAt: string;
   source?: "manual" | "outlook";
 };
+
+export type Workspace = {
+  id: string;
+  name: string;
+};
+
+// Fallback list if Firestore returns no workspaces (shouldn't happen once
+// the main Waypoint app has booted, since it seeds these on first load).
+// Mirrors waypoint/src/constants.ts SEED_WORKSPACES — keep in sync.
+export const SEED_WORKSPACES: Workspace[] = [
+  { id: "design", name: "Design" },
+  { id: "video", name: "Video" },
+  { id: "marketing", name: "Marketing" },
+];
+
+export const DEFAULT_WORKSPACE_ID = SEED_WORKSPACES[0].id;
 
 export const BRANDS = [
   "CargoWise",
