@@ -105,7 +105,8 @@ function populateAssignees(ds: Designer[]) {
   const sel = el<HTMLSelectElement>("f-assignee");
   sel.innerHTML = "";
   sel.appendChild(option("", "— Unassigned —"));
-  ds.forEach((d) => sel.appendChild(option(d.id, d.name)));
+  const sorted = ds.slice().sort((a, b) => a.name.localeCompare(b.name));
+  sorted.forEach((d) => sel.appendChild(option(d.id, d.name)));
 }
 
 function populateBrands() {
