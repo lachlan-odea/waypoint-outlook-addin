@@ -3,35 +3,50 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1D1765" />
     <title>Waypoint — Outlook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400..700&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="app">
       <header class="header">
-        <div class="brand">Waypoint</div>
+        <img class="logo" src="/waypoint-horizontal-white.svg" alt="Waypoint" height="22" />
+        <span class="eyebrow">Brief to Waypoint</span>
       </header>
 
       <main id="view-loading" class="view">
-        <p class="muted">Loading…</p>
+        <p class="loading">Reading the email…</p>
       </main>
 
       <main id="view-form" class="view hidden">
-        <p id="form-banner" class="banner hidden"></p>
+        <p id="form-banner" class="banner hidden" role="status"></p>
+
         <label class="field">
           <span>Title</span>
           <input id="f-title" />
         </label>
+
         <label class="field">
           <span>Overview</span>
           <textarea id="f-overview" rows="6"></textarea>
           <div id="f-overview-preview" class="overview-links empty" aria-live="polite"></div>
         </label>
+
         <div class="grid">
           <label class="field">
             <span>Client</span>
             <input id="f-client" />
+          </label>
+          <label class="field">
+            <span>Brand</span>
+            <select id="f-brand"></select>
           </label>
           <label class="field">
             <span>Commenced</span>
@@ -51,30 +66,43 @@
             </select>
           </label>
           <label class="field">
-            <span>Assignee</span>
-            <select id="f-assignee"></select>
-          </label>
-          <label class="field">
-            <span>Workspace</span>
-            <select id="f-workspace"></select>
-          </label>
-          <label class="field">
-            <span>Brand</span>
-            <select id="f-brand"></select>
-          </label>
-          <label class="field">
-            <span>Content type</span>
-            <select id="f-area"></select>
+            <span>Status</span>
+            <select id="f-status"></select>
           </label>
           <label class="field span-2">
-            <span>Brief URL</span>
+            <span>Team</span>
+            <select id="f-workspace"></select>
+            <small id="f-workspace-hint" class="field-hint"></small>
+          </label>
+          <div class="field span-2">
+            <span>Content types</span>
+            <div id="f-type-chips" class="chips"></div>
+            <input id="f-type-other" class="other hidden" placeholder="Type a content type, then Enter" />
+          </div>
+          <label class="field span-2">
+            <span>URL</span>
             <input id="f-brief" placeholder="https://…" />
           </label>
+          <div class="field span-2">
+            <span>Assignees</span>
+            <div id="f-assignee-chips" class="chips"></div>
+            <select id="f-assignee-add" aria-label="Add assignee"></select>
+          </div>
+          <div class="field span-2">
+            <span>Request review</span>
+            <div id="f-reviewer-chips" class="chips"></div>
+            <select id="f-reviewer-add" aria-label="Add reviewer"></select>
+            <small id="f-reviewer-hint" class="field-hint"></small>
+          </div>
         </div>
-        <p id="form-error" class="error hidden"></p>
-        <div class="row-end">
-          <button id="form-reset" class="ghost">Reset from email</button>
-          <button id="form-submit" class="primary">Add project</button>
+
+        <p id="form-error" class="error hidden" role="alert"></p>
+
+        <div class="actions">
+          <button id="form-reset" type="button" class="ghost">Reset from email</button>
+          <span class="spacer"></span>
+          <button id="form-handoff" type="button" class="ghost" title="Open Waypoint's New project form with these details">Finish in Waypoint</button>
+          <button id="form-submit" type="button" class="primary">Add project</button>
         </div>
       </main>
     </div>

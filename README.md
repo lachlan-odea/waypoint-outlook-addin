@@ -1,49 +1,81 @@
 # Waypoint — Outlook add-in
 
-Reads the open Outlook message and creates a project in Waypoint in one click.
-Pairs with the [Waypoint React app](../design-pm/) and writes to the same
-shared Firebase project.
+Reads the open Outlook message and creates a project on a Waypoint team board
+in one click. Pairs with the [Waypoint React app](https://github.com/lachlan-odea/waypoint)
+(version 3.0) and writes to the same Firebase project, so the project appears
+on everyone's board immediately.
 
 ## What it does
 
-- Adds a "Brief to Waypoint" button to the Outlook ribbon on read messages.
+- Adds a **Brief to Waypoint** button to the Outlook ribbon on read messages.
 - The task pane pre-fills a project from the email:
   - **Title** ← subject
-  - **Overview** ← body (truncated to 600 chars)
+  - **Overview** ← body (links kept inline, truncated to 600 chars), with the
+    detected links listed under it
   - **Client** ← sender name / email
+  - **Brand** ← detects CargoWise, Landside, WiseTech Global / WTG, WiseTech
+    Academy / WTA, e2open, Blume, BorderWise in the subject or body
   - **Commenced** ← today
-  - **Due date** ← best-effort parse of "due by …", "deadline …", ISO dates, dd/mm/yyyy
+  - **Due date** ← best-effort parse of "due by …", "deadline …", ISO dates,
+    dd/mm/yyyy
   - **Priority** ← detects "urgent", "asap", "important", "low priority" etc.
-  - **Brief URL** ← first http(s) link in the body
-  - **Assignee / Brand / Content type** ← dropdowns sourced live from Firestore
-- One click writes the new project into the same Firebase project the React
-  app reads, so it appears in everyone's Waypoint immediately. The project is
-  flagged with `source: "outlook"`.
+  - **URL** ← first http(s) link in the body
+  - **Assignees** ← you, when your mailbox email matches a Waypoint profile
+- The rest of the form matches Waypoint 3.0's New project form:
+  - **Status** — Planning, Active, On hold, Completed or Cancelled (new
+    projects start Active, as in the app).
+  - **Team** — the boards you can see in Waypoint (Design, Video, Marketing,
+    Comms, Events, or whatever is in `/workspaces`), with the same warning the
+    app gives when an assignee isn't a member of the chosen team.
+  - **Content types** — multi-select chips from Settings → Types & tags in
+    Waypoint (`/socialConfig/default`), with an "Other…" escape hatch. Written
+    as `contentTypes[]`; the legacy single `contentType` is no longer written.
+  - **Assignees** — any number of people, as chips.
+  - **Request review** — pick from the designers flagged as reviewers.
+    Waypoint's `notifyReviewerAssigned` Cloud Function emails each one a link
+    to the project.
+- **Add project** writes the project to Firestore flagged `source: "outlook"`
+  and shows an **Open in Waypoint** link to it.
+- **Finish in Waypoint** opens the Waypoint app's own New project form with
+  the draft pre-filled (the `?new=<base64 json>` deep link handled in
+  `waypoint/src/App.tsx`), for when the brief needs milestones or you'd rather
+  file it signed in as yourself.
+- Follows the Waypoint 3.0 design system: the Waypoint logo on the WiseTech
+  Blue header band, DM Sans and DM Mono, the `--wtg-*` palette, one 10px
+  radius, no shadows. Dark mode follows Outlook desktop's theme or, on the
+  web, the browser.
 
 ## Architecture
 
 ```
 Outlook (Win/Mac/Web) ─▶ Office.js ─▶ task pane (this add-in)
-                                          │
-                                          ▼ GET /v3/b/{id}/latest
-                                       JSONBin  ◀── React PM app
-                                          ▲ PUT /v3/b/{id}
-                                          │
-                                       project appended
+                                          │  Firebase Anonymous Auth
+                                          ▼
+                                 Firestore (wtg-waypoint)  ◀── Waypoint React app
+                                  /designers   read
+                                  /workspaces  read
+                                  /socialConfig/default  read (content types)
+                                  /projects    write one document
 ```
 
-The add-in reads the workspace, pushes a new project to the front of
-`projects[]`, then PUTs the whole record back. JSONBin doesn't support
-atomic append, so this is last-write-wins — fine for a team of nine.
+The add-in signs in anonymously on every load (the task pane has no stored
+session), reads the team, workspace and Types & tags lists, and writes one
+project document. Firestore rules require any signed-in user, so Anonymous
+sign-in must stay enabled on the Firebase project. The Firebase web config in
+`src/firebase.ts` is a public project identifier, not a secret.
+
+Keep `src/types.ts` in step with `waypoint/src/types.ts` and
+`waypoint/src/constants.ts` (`BRANDS`, `SEED_WORKSPACES`, `CONTENT_TYPES`,
+`PROJECT_STATUSES`): a field written here lands on the same document the app
+renders.
 
 ## Local development
 
-Prereqs: Node 20+, Outlook desktop or Outlook on the web. The add-in writes
-straight to the shared Firebase project that backs the main Waypoint app — no
-per-user config needed.
+Prereqs: Node 20+ (CI uses 22), Outlook desktop or Outlook on the web. No
+per-user config: the add-in writes straight to the shared Firebase project
+that backs the main Waypoint app.
 
 ```bash
-cd waypoint-outlook-addin
 npm install
 npm run certs:install   # one-time: installs a trusted CA cert for localhost
 npm run manifest:dev    # writes manifest.dev.xml pointing at https://localhost:3000
@@ -86,51 +118,46 @@ viewing an email. Click it → the form pre-fills from the message → submit.
 - The manifest has a schema issue. Run `npm run manifest:validate` and fix
   anything it flags.
 
+**"Missing or insufficient permissions"** in the pane — Anonymous sign-in has
+been disabled on the Firebase project, or the Firestore rules changed. Both
+are managed in the Firebase console for `wtg-waypoint`.
+
 ## Deploying to GitHub Pages
 
-1. Push this folder to a GitHub repo (e.g. `waypoint-outlook-addin`).
-2. In repo **Settings → Pages**, set **Source: GitHub Actions**.
-3. Push to `main`. The `.github/workflows/deploy.yml` workflow:
-   - Builds the site with `VITE_BASE=/waypoint-outlook-addin/`.
-   - Writes `manifest.prod.xml` with `BASE_URL=https://<owner>.github.io/<repo>`.
-   - Publishes everything to Pages.
-4. After deploy, download `manifest.prod.xml` from the deployed site
-   (`https://<owner>.github.io/<repo>/manifest.xml`) and sideload it in Outlook
-   for production users — or upload it to **Microsoft 365 admin → Integrated apps**
-   for centralised deployment across your tenant.
+Pushing to `main` runs `.github/workflows/deploy.yml`, which:
+- Builds the site with `VITE_BASE=/waypoint-outlook-addin/`.
+- Writes `manifest.prod.xml` with `BASE_URL=https://<owner>.github.io/<repo>`.
+- Publishes everything to Pages.
 
-## Settings storage
-
-JSONBin credentials live in `Office.context.roamingSettings` (per-user,
-per-add-in, synced across Outlook sessions). When developing outside Office
-(plain browser), the add-in falls back to `localStorage`.
+After a deploy, the production manifest is at
+`https://<owner>.github.io/waypoint-outlook-addin/manifest.xml`. Sideload it
+in Outlook, or upload it to **Microsoft 365 admin → Integrated apps** for
+centralised deployment across the tenant. Outlook caches the task pane; bump
+`<Version>` in `manifest.xml` when the manifest itself changes.
 
 ## File guide
 
 | File | Purpose |
 |---|---|
 | `manifest.xml` | Templated Office Add-in manifest. `{{BASE_URL}}` is replaced by `scripts/build-manifest.mjs`. |
-| `index.html` | Task pane entry. Loads Office.js + `src/main.ts`. |
-| `commands.html` | Required by manifest's `FunctionFile`; currently no-op. |
-| `src/main.ts` | UI controller — wires the form and submit flow. |
-| `src/email.ts` | Reads the current Outlook message and best-effort parses dates / priority. |
-| `src/jsonbin.ts` | Read/write the workspace bin. |
-| `src/settings.ts` | Persist JSONBin creds via `roamingSettings`. |
-| `src/types.ts` | Mirror of the PM tool's `Workspace` / `Project` types. |
-| `scripts/generate-icons.mjs` | Generates solid purple PNG placeholder icons. Replace with branded artwork. |
+| `index.html` | Task pane markup. Loads Office.js, the DM Sans / DM Mono fonts and `src/main.ts`. |
+| `commands.html` | Required by the manifest's `FunctionFile`; currently a no-op. |
+| `src/main.ts` | UI controller — pre-fills the form, renders the chip pickers, submits or hands off to Waypoint. |
+| `src/email.ts` | Reads the current Outlook message and best-effort parses dates, priority and brand. |
+| `src/firebase.ts` | Firebase app + anonymous sign-in. |
+| `src/firestore.ts` | Reads designers, workspaces and Types & tags; writes the project. |
+| `src/linkify.ts` | Mirror of the app's link detection, for the overview's link preview. |
+| `src/types.ts` | Mirror of Waypoint's `Project`, `Designer`, `Workspace` types and constants. |
+| `src/styles.css` | Waypoint 3.0 design tokens and the pane's styles. |
+| `public/waypoint-horizontal-*.svg` | The Waypoint logo lockups, copied from `waypoint/public/logos/`. |
+| `scripts/generate-icons.mjs` | Renders the Waypoint app icon to the manifest's PNG sizes (same geometry as `waypoint/scripts/make-icons.mjs`). Runs before `dev` and `build`. |
 | `scripts/build-manifest.mjs` | Replaces `{{BASE_URL}}` in `manifest.xml` for dev / prod. |
 | `.github/workflows/deploy.yml` | Builds + publishes to GitHub Pages. |
 
-## Replacing the icons
-
-The default purple squares come from `scripts/generate-icons.mjs`. Drop your own
-PNGs into `public/icons/` named `icon-16.png`, `icon-32.png`, `icon-64.png`,
-`icon-80.png`, `icon-128.png` — or run `npm run icons -- --force` to overwrite.
-
 ## Privacy / security note
 
-The master JSONBin key is stored in `roamingSettings`, which is encrypted at
-rest by Microsoft 365 but is recoverable by anyone who controls the user's
-mailbox. If you wire this up to a sensitive workspace, gate the bin with an
-**access key** (the third field in the settings panel) and treat the master
-key as a deploy-time secret.
+The add-in holds no credentials: it authenticates to Firebase anonymously and
+relies on the Firestore rules, which let any signed-in user read the team lists
+and write projects. That's the same trust model as the main app for a small
+internal team; tighten the rules (and this add-in's auth) before opening
+Waypoint to anyone outside it.

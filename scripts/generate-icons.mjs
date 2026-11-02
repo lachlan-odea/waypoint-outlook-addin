@@ -1,78 +1,120 @@
-// Generates solid-colour placeholder PNG icons for the Office Add-in manifest.
-// Replace public/icons/*.png with your own branded artwork when ready.
+// Rasterises the Waypoint app icon (design system §3: a WiseTech Blue rounded
+// square with three staggered rounded bars, the last one Violet) to the PNG
+// sizes the Office Add-in manifest needs. Same geometry and renderer as
+// waypoint/scripts/make-icons.mjs, so the ribbon button, the installed PWA
+// and the browser tab all show the same mark. No image library: coverage is
+// computed per pixel with 4×4 supersampling and written as RGBA PNG.
+//
+//   node scripts/generate-icons.mjs
+//
+// Writes public/icons/icon-{16,32,64,80,128}.png. The output is
+// deterministic, so re-running on every build leaves git clean.
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const outDir = resolve(__dirname, "..", "public", "icons");
-const sizes = [16, 32, 64, 80, 128];
-const FORCE = process.argv.includes("--force");
+const outDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", "public", "icons");
+const SIZES = [16, 32, 64, 80, 128];
 
-// Brand colour from the React PM tool (--primary: #4f46e5).
-const R = 0x4f;
-const G = 0x46;
-const B = 0xe5;
+const BLUE = [0x1d, 0x17, 0x65];
+const WHITE = [0xff, 0xff, 0xff];
+const VIOLET = [0xb7, 0xb3, 0xff];
+// x, y, width in the 48-unit mark; every bar is 8 tall with fully round ends.
+const BARS = [
+  [5, 8, 22, WHITE],
+  [13, 20, 24, WHITE],
+  [23, 32, 20, VIOLET],
+];
+const SS = 4; // samples per axis per pixel
 
-function crc32(buf) {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    crc ^= buf[i];
-    for (let k = 0; k < 8; k++) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
+// Signed distance to a rounded rectangle; negative inside.
+function sdRoundRect(px, py, x, y, w, h, r) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const qx = Math.abs(px - cx) - (w / 2 - r);
+  const qy = Math.abs(py - cy) - (h / 2 - r);
+  return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - r;
 }
 
+function render(size) {
+  const radius = size * (96 / 512);
+  const scale = (size * 0.6) / 48;
+  const offset = (size - 48 * scale) / 2;
+  const px = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let sy = 0; sy < SS; sy++) {
+        for (let sx = 0; sx < SS; sx++) {
+          const fx = x + (sx + 0.5) / SS;
+          const fy = y + (sy + 0.5) / SS;
+          if (sdRoundRect(fx, fy, 0, 0, size, size, radius) > 0) continue;
+          let c = BLUE;
+          for (const [bx, by, bw, col] of BARS) {
+            if (
+              sdRoundRect(fx, fy, offset + bx * scale, offset + by * scale, bw * scale, 8 * scale, 4 * scale) <= 0
+            ) {
+              c = col;
+              break;
+            }
+          }
+          r += c[0]; g += c[1]; b += c[2]; a += 1;
+        }
+      }
+      const i = (y * size + x) * 4;
+      if (a) {
+        px[i] = Math.round(r / a);
+        px[i + 1] = Math.round(g / a);
+        px[i + 2] = Math.round(b / a);
+      }
+      px[i + 3] = Math.round((a / (SS * SS)) * 255);
+    }
+  }
+  return png(size, size, px);
+}
+
+// ── Minimal PNG encoder: 8-bit RGBA, filter 0, one IDAT ─────────────────
+const CRC = new Int32Array(256).map((_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c;
+});
+function crc32(buf) {
+  let c = -1;
+  for (const byte of buf) c = CRC[(c ^ byte) & 0xff] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+}
 function chunk(type, data) {
   const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const typeBuf = Buffer.from(type, "ascii");
-  const crcBuf = Buffer.alloc(4);
-  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-  return Buffer.concat([len, typeBuf, data, crcBuf]);
+  len.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
 }
-
-function makePng(size) {
-  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // colour type RGB
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  const rowSize = 1 + size * 3;
-  const raw = Buffer.alloc(rowSize * size);
-  for (let y = 0; y < size; y++) {
-    const off = y * rowSize;
-    raw[off] = 0; // filter type None
-    for (let x = 0; x < size; x++) {
-      const p = off + 1 + x * 3;
-      raw[p] = R;
-      raw[p + 1] = G;
-      raw[p + 2] = B;
-    }
+function png(w, h, rgba) {
+  const raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) {
+    raw[y * (w * 4 + 1)] = 0;
+    rgba.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
   }
-  const idat = deflateSync(raw);
-
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
   return Buffer.concat([
-    signature,
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr),
-    chunk("IDAT", idat),
+    chunk("IDAT", deflateSync(raw, { level: 9 })),
     chunk("IEND", Buffer.alloc(0)),
   ]);
 }
 
 mkdirSync(outDir, { recursive: true });
-for (const s of sizes) {
-  const path = resolve(outDir, `icon-${s}.png`);
-  if (!FORCE && existsSync(path)) continue;
-  writeFileSync(path, makePng(s));
-  console.log(`Wrote ${path}`);
+for (const size of SIZES) {
+  const buf = render(size);
+  writeFileSync(resolve(outDir, `icon-${size}.png`), buf);
+  console.log(`icon-${size}.png`.padEnd(14), `${size}×${size}`, `${buf.length} bytes`);
 }

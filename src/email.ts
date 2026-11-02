@@ -43,17 +43,28 @@ export async function readCurrentEmail(): Promise<EmailContext> {
   };
 }
 
-// Initialisations the design team uses internally for brand names. Matched
-// against the email subject + body as whole words (case-insensitive).
-const BRAND_INITIALS: { token: string; brand: string }[] = [
+// Brand names and the initialisms the design team uses for them, matched
+// against the email subject + body as whole words (case-insensitive). Most
+// specific first, so "CargoWise Landside" wins over "CargoWise" and "WTA"
+// over "WTG". Brands are the BRANDS list in types.ts.
+const BRAND_TOKENS: { token: string; brand: string }[] = [
+  { token: "CargoWise Landside", brand: "CargoWise Landside" },
+  { token: "Landside", brand: "CargoWise Landside" },
+  { token: "WiseTech Academy", brand: "WiseTech Academy" },
   { token: "WTA", brand: "WiseTech Academy" },
+  { token: "WiseTech Global", brand: "WiseTech Global" },
   { token: "WTG", brand: "WiseTech Global" },
+  { token: "BorderWise", brand: "BorderWise" },
+  { token: "e2open", brand: "e2open" },
+  { token: "Blume", brand: "Blume" },
+  { token: "CargoWise", brand: "CargoWise" },
   { token: "CW", brand: "CargoWise" },
 ];
 
 function detectBrand(text: string): string | null {
-  for (const { token, brand } of BRAND_INITIALS) {
-    const re = new RegExp(`(?<![A-Za-z])${token}(?![A-Za-z])`, "i");
+  for (const { token, brand } of BRAND_TOKENS) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+    const re = new RegExp(`(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`, "i");
     if (re.test(text)) return brand;
   }
   return null;
