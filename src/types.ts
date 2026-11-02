@@ -140,7 +140,5 @@ export const CONTENT_TYPES = [
 ] as const;
 
 // Where the deployed Waypoint app lives. Used for the "Open in Waypoint"
-// link after a project is created and for the deep link that hands a draft
-// over to the full New project form (`?new=<base64 json>`, handled in
-// waypoint/src/App.tsx).
+// link shown after a project is created (`?project=<id>`).
 export const WAYPOINT_APP_URL = "https://lachlan-odea.github.io/waypoint/";

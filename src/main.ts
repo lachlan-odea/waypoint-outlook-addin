@@ -108,7 +108,6 @@ function bindUi() {
     if (email) fillForm(email);
   });
   el("form-submit").addEventListener("click", () => void onSubmit());
-  el("form-handoff").addEventListener("click", onHandoff);
   el("f-overview").addEventListener("input", updateOverviewPreview);
   el("f-workspace").addEventListener("change", updateOutsiderHint);
 
@@ -444,40 +443,6 @@ async function onSubmit() {
   }
 }
 
-// Hand the draft to Waypoint's own New project form instead of writing it
-// from here — useful when the brief needs milestones or a longer overview,
-// or when the user wants to file it as themselves rather than via the
-// add-in's anonymous session. The payload is the same shape App.tsx reads
-// from `?new=`.
-function onHandoff() {
-  showFormError(null);
-  const project = buildProject();
-  if (!project) return;
-  const payload: Partial<Project> = {
-    workspaceId: project.workspaceId,
-    title: project.title,
-    overview: project.overview,
-    client: project.client,
-    brand: project.brand,
-    contentTypes: project.contentTypes,
-    briefUrl: project.briefUrl,
-    dueDate: project.dueDate,
-    priority: project.priority,
-    assigneeIds: project.assigneeIds,
-  };
-  openExternal(`${WAYPOINT_APP_URL}?new=${encodeURIComponent(base64Utf8(JSON.stringify(payload)))}`);
-}
-
-// btoa() only takes Latin-1; the overview can hold anything. App.tsx decodes
-// with atob() then JSON.parse, which reads the UTF-8 bytes back correctly
-// because JSON escapes stay ASCII — so encode via UTF-8 bytes here.
-function base64Utf8(s: string): string {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin);
-}
-
 function openExternal(url: string) {
   const ui = Office.context.ui as { openBrowserWindow?: (u: string) => void } | undefined;
   if (ui?.openBrowserWindow) {
@@ -492,7 +457,6 @@ function setSubmitting(busy: boolean) {
   const btn = el<HTMLButtonElement>("form-submit");
   btn.disabled = busy;
   btn.textContent = busy ? "Adding…" : "Add project";
-  el<HTMLButtonElement>("form-handoff").disabled = busy;
 }
 
 function showView(name: "loading" | "form") {

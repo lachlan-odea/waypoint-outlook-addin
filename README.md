@@ -36,10 +36,6 @@ on everyone's board immediately.
     to the project.
 - **Add project** writes the project to Firestore flagged `source: "outlook"`
   and shows an **Open in Waypoint** link to it.
-- **Finish in Waypoint** opens the Waypoint app's own New project form with
-  the draft pre-filled (the `?new=<base64 json>` deep link handled in
-  `waypoint/src/App.tsx`), for when the brief needs milestones or you'd rather
-  file it signed in as yourself.
 - Follows the Waypoint 3.0 design system: the Waypoint logo on the WiseTech
   Blue header band, DM Sans and DM Mono, the `--wtg-*` palette, one 10px
   radius, no shadows. Dark mode follows Outlook desktop's theme or, on the
