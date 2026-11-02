@@ -34,8 +34,11 @@ on everyone's board immediately.
   - **Request review** — pick from the designers flagged as reviewers.
     Waypoint's `notifyReviewerAssigned` Cloud Function emails each one a link
     to the project.
-- **Add project** writes the project to Firestore flagged `source: "outlook"`
-  and shows an **Open in Waypoint** link to it.
+- **Add project** writes the project to Firestore flagged `source: "outlook"`,
+  then shows a confirmation with the title, team, status and due date, an
+  **Open in Waypoint** button that deep-links to the project
+  (`?project=<id>`), and a way back to the form to add another project from
+  the same email.
 - Follows the Waypoint 3.0 design system: the Waypoint logo on the WiseTech
   Blue header band, DM Sans and DM Mono, the `--wtg-*` palette, one 10px
   radius, no shadows. Dark mode follows Outlook desktop's theme or, on the

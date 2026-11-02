@@ -104,6 +104,18 @@
           <button id="form-submit" type="button" class="primary">Add project</button>
         </div>
       </main>
+
+      <main id="view-done" class="view done hidden" aria-live="polite">
+        <div class="done-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </div>
+        <p class="done-eyebrow">Added to Waypoint</p>
+        <h2 id="done-title" class="done-title"></h2>
+        <p id="done-meta" class="done-meta"></p>
+        <p class="done-note">It's on the team board now. Assignees and reviewers see it the next time they open Waypoint.</p>
+        <a id="done-open" class="primary button" href="#" target="_blank" rel="noreferrer">Open in Waypoint</a>
+        <button id="done-another" type="button" class="ghost">Add another project from this email</button>
+      </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
