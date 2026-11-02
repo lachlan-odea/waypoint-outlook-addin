@@ -65,6 +65,13 @@ async function boot() {
     email = ctx;
     me = findMe(designers);
     fillForm(ctx);
+    // Dev server only: https://localhost:3000/waypoint-outlook-addin/#preview-done
+    // shows the confirmation view with sample data. Vite drops this in builds.
+    if (import.meta.env.DEV && location.hash === "#preview-done") {
+      const sample = buildProject();
+      if (sample) showDone({ ...sample, title: "Q3 Landside launch deck", dueDate: "2026-11-20" });
+      return;
+    }
     if (!hasMailItem()) {
       setBanner(
         "Preview mode: no Outlook message is open, so nothing was pre-filled. " +
@@ -108,7 +115,12 @@ function bindUi() {
     if (email) fillForm(email);
   });
   el("form-submit").addEventListener("click", () => void onSubmit());
-  el("form-handoff").addEventListener("click", onHandoff);
+  el("done-another").addEventListener("click", () => {
+    if (email) fillForm(email);
+    showFormError(null);
+    showView("form");
+    window.scrollTo(0, 0);
+  });
   el("f-overview").addEventListener("input", updateOverviewPreview);
   el("f-workspace").addEventListener("change", updateOutsiderHint);
 
@@ -433,10 +445,7 @@ async function onSubmit() {
   setSubmitting(true);
   try {
     await addProject(project);
-    setBanner(
-      `Added "${project.title}" to Waypoint.`,
-      `${WAYPOINT_APP_URL}?project=${encodeURIComponent(project.id)}`,
-    );
+    showDone(project);
   } catch (err) {
     showFormError(formatError(err));
   } finally {
@@ -444,38 +453,35 @@ async function onSubmit() {
   }
 }
 
-// Hand the draft to Waypoint's own New project form instead of writing it
-// from here — useful when the brief needs milestones or a longer overview,
-// or when the user wants to file it as themselves rather than via the
-// add-in's anonymous session. The payload is the same shape App.tsx reads
-// from `?new=`.
-function onHandoff() {
-  showFormError(null);
-  const project = buildProject();
-  if (!project) return;
-  const payload: Partial<Project> = {
-    workspaceId: project.workspaceId,
-    title: project.title,
-    overview: project.overview,
-    client: project.client,
-    brand: project.brand,
-    contentTypes: project.contentTypes,
-    briefUrl: project.briefUrl,
-    dueDate: project.dueDate,
-    priority: project.priority,
-    assigneeIds: project.assigneeIds,
+// Confirmation after a save: what went in, where, and a link straight to
+// the project (the same `?project=<id>` link Waypoint uses for sharing).
+function showDone(project: Project) {
+  const href = `${WAYPOINT_APP_URL}?project=${encodeURIComponent(project.id)}`;
+  el("done-title").textContent = project.title;
+  const team = workspaces.find((w) => w.id === project.workspaceId)?.name;
+  const status = PROJECT_STATUSES.find((s) => s.value === project.status)?.label;
+  const names = project.assigneeIds
+    .map((id) => designers.find((d) => d.id === id)?.name)
+    .filter((n): n is string => Boolean(n));
+  const due = project.dueDate ? `Due ${formatDate(project.dueDate)}` : null;
+  el("done-meta").textContent = [team, status, due, names.length ? `For ${names.join(", ")}` : null]
+    .filter(Boolean)
+    .join("  ·  ");
+  const open = el<HTMLAnchorElement>("done-open");
+  open.href = href;
+  open.onclick = (e) => {
+    e.preventDefault();
+    openExternal(href);
   };
-  openExternal(`${WAYPOINT_APP_URL}?new=${encodeURIComponent(base64Utf8(JSON.stringify(payload)))}`);
+  showView("done");
+  window.scrollTo(0, 0);
 }
 
-// btoa() only takes Latin-1; the overview can hold anything. App.tsx decodes
-// with atob() then JSON.parse, which reads the UTF-8 bytes back correctly
-// because JSON escapes stay ASCII — so encode via UTF-8 bytes here.
-function base64Utf8(s: string): string {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin);
+function formatDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function openExternal(url: string) {
@@ -492,11 +498,10 @@ function setSubmitting(busy: boolean) {
   const btn = el<HTMLButtonElement>("form-submit");
   btn.disabled = busy;
   btn.textContent = busy ? "Adding…" : "Add project";
-  el<HTMLButtonElement>("form-handoff").disabled = busy;
 }
 
-function showView(name: "loading" | "form") {
-  ["loading", "form"].forEach((n) => {
+function showView(name: "loading" | "form" | "done") {
+  ["loading", "form", "done"].forEach((n) => {
     document.getElementById(`view-${n}`)?.classList.toggle("hidden", n !== name);
   });
 }
