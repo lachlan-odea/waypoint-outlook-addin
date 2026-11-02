@@ -2,7 +2,7 @@
 <!--
   Office Add-in manifest for Waypoint.
   The {{BASE_URL}} placeholder is replaced by `npm run build:manifest`.
-  For local sideloading, run `npm run manifest:dev` (writes a manifest pointed at https://localhost:3000).
+  For local sideloading, run `npm run manifest:dev` (writes a manifest pointed at https://localhost:3000/waypoint-outlook-addin).
   For GitHub Pages, run `npm run manifest:prod` (uses values from manifest.prod.env).
 -->
 <OfficeApp

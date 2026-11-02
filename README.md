@@ -77,10 +77,15 @@ that backs the main Waypoint app.
 
 ```bash
 npm install
-npm run certs:install   # one-time: installs a trusted CA cert for localhost
-npm run manifest:dev    # writes manifest.dev.xml pointing at https://localhost:3000
+npm run certs:install   # installs a trusted CA cert for localhost, valid for a year
+npm run manifest:dev    # writes manifest.dev.xml pointing at https://localhost:3000/waypoint-outlook-addin
 npm run dev             # starts the HTTPS dev server on :3000
 ```
+
+To look at the pane without Outlook, open
+`https://localhost:3000/waypoint-outlook-addin/` in a browser: it loads the team
+lists from Firestore and shows the empty form with a preview-mode notice, since
+there is no message to pre-fill from.
 
 `npm run certs:install` runs Microsoft's `office-addin-dev-certs` tool, which
 adds a CA cert to your Windows Trusted Root store. After this Outlook (and your
@@ -112,8 +117,9 @@ viewing an email. Click it → the form pre-fills from the message → submit.
 **"Add-in installation failed"** in Outlook on the web — almost always one of:
 - `npm run dev` isn't running. The server must be up while Outlook fetches the
   manifest URLs at install time.
-- The dev cert isn't trusted yet. Run `npm run certs:install` once, then
-  restart the dev server. Confirm by opening `https://localhost:3000/icons/icon-64.png`
+- The dev cert isn't trusted yet, or has expired (the default is only 30 days;
+  `npm run certs:install` issues a one-year cert). Run it, then
+  restart the dev server. Confirm by opening `https://localhost:3000/waypoint-outlook-addin/icons/icon-64.png`
   in the same browser; it should load with no warning.
 - The manifest has a schema issue. Run `npm run manifest:validate` and fix
   anything it flags.

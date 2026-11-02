@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "icons": "node scripts/generate-icons.mjs",
-    "certs:install": "office-addin-dev-certs install",
+    "certs:install": "office-addin-dev-certs install --days 365",
     "certs:uninstall": "office-addin-dev-certs uninstall",
     "manifest:dev": "node scripts/build-manifest.mjs dev",
     "manifest:prod": "node scripts/build-manifest.mjs prod",

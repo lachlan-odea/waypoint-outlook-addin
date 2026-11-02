@@ -15,9 +15,27 @@ export type EmailContext = {
   firstUrl: string | null;
 };
 
+// True inside Outlook with a message open. False when the pane is loaded in a
+// plain browser tab (e.g. the Vite dev server) for a look at the UI.
+export function hasMailItem(): boolean {
+  return Boolean(Office.context?.mailbox?.item);
+}
+
+const EMPTY_CONTEXT: Omit<EmailContext, "receivedISO"> = {
+  subject: "",
+  bodyText: "",
+  senderName: "",
+  senderEmail: "",
+  detectedDueDate: null,
+  detectedPriority: null,
+  detectedBrand: null,
+  firstUrl: null,
+};
+
 export async function readCurrentEmail(): Promise<EmailContext> {
-  const item = Office.context.mailbox.item;
-  if (!item) throw new Error("No mail item in context.");
+  const item = Office.context?.mailbox?.item;
+  // No message to read from: hand back an empty draft so the form still renders.
+  if (!item) return { ...EMPTY_CONTEXT, receivedISO: new Date().toISOString() };
 
   const subject = item.subject ?? "";
   const from = item.from;

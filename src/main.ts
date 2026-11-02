@@ -6,7 +6,7 @@ import {
   loadSocialConfig,
   loadWorkspaces,
 } from "./firestore";
-import { readCurrentEmail, type EmailContext } from "./email";
+import { hasMailItem, readCurrentEmail, type EmailContext } from "./email";
 import {
   BRANDS,
   CONTENT_TYPES,
@@ -65,6 +65,12 @@ async function boot() {
     email = ctx;
     me = findMe(designers);
     fillForm(ctx);
+    if (!hasMailItem()) {
+      setBanner(
+        "Preview mode: no Outlook message is open, so nothing was pre-filled. " +
+          "Inside Outlook the title, overview, client, brand, dates and priority come from the email.",
+      );
+    }
     showView("form");
   } catch (err) {
     showFormError(formatError(err));
@@ -76,7 +82,7 @@ async function boot() {
 // since Waypoint 2, so that's the reliable key; the name heuristic is kept
 // for profiles created before the field existed.
 function findMe(ds: Designer[]): Designer | null {
-  const myEmail = Office.context.mailbox.userProfile?.emailAddress?.toLowerCase();
+  const myEmail = Office.context?.mailbox?.userProfile?.emailAddress?.toLowerCase();
   if (!myEmail) return null;
   const byEmail = ds.find((d) => d.email?.toLowerCase() === myEmail);
   if (byEmail) return byEmail;

@@ -17,7 +17,7 @@ const mode = process.argv[2] ?? "dev";
 let baseUrl = process.env.BASE_URL;
 if (!baseUrl) {
   if (mode === "dev") {
-    baseUrl = "https://localhost:3000";
+    baseUrl = "https://localhost:3000/waypoint-outlook-addin";
   } else {
     const envPath = resolve(root, ".env.manifest");
     if (existsSync(envPath)) {
