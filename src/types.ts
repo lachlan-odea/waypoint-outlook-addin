@@ -77,6 +77,9 @@ export type Project = {
   comments: Comment[];
   createdAt: string;
   source?: "manual" | "outlook" | "teams";
+  // Firebase uid of whoever saved the document (waypoint/src/types.ts
+  // UpdatedBy). The add-in sets it to the signed-in user on create.
+  updatedBy?: string;
 };
 
 // A team. An empty / missing `memberIds` means the team is open to everyone;
@@ -140,5 +143,6 @@ export const CONTENT_TYPES = [
 ] as const;
 
 // Where the deployed Waypoint app lives. Used for the "Open in Waypoint"
-// link shown after a project is created (`?project=<id>`).
+// link shown after a project is created (`?project=<id>`), and for the
+// "request access" link shown to signed-in users who aren't approved yet.
 export const WAYPOINT_APP_URL = "https://lachlan-odea.github.io/waypoint/";

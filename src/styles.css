@@ -483,3 +483,79 @@ a.button:focus-visible {
   color: var(--danger-fg);
   white-space: pre-wrap;
 }
+
+/* Sign-in and "not approved yet" views: a compact card-less column in the
+   same field and button styles as the form. */
+.auth {
+  gap: 14px;
+  padding-top: 24px;
+}
+.auth-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.auth-note {
+  margin: 0;
+  color: var(--muted);
+}
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-form button.primary,
+.auth .button,
+.auth > button.ghost {
+  width: 100%;
+}
+
+/* Text-style button: "Forgot password?" and "Sign out". */
+button.link-button {
+  align-self: center;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+button.link-button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.link-button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+button.link-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* "Signed in as … · Sign out" above the form. */
+.account-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.account-line .link-button {
+  padding: 0 2px;
+  font-size: 11px;
+}
+.account-email {
+  font-family: var(--font-mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

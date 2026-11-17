@@ -8,6 +8,12 @@ on everyone's board immediately.
 ## What it does
 
 - Adds a **Brief to Waypoint** button to the Outlook ribbon on read messages.
+- Asks you to sign in with your Waypoint work email and password (with a
+  **Forgot password?** link that sends Waypoint's reset email). The session is
+  remembered, so this is usually once per device. Only approved Waypoint
+  members get the form; a signed-in account that hasn't been approved yet sees
+  a short note with a link to Waypoint to request access or check its status.
+  The form shows **Signed in as … · Sign out** at the top.
 - The task pane pre-fills a project from the email:
   - **Title** ← subject
   - **Overview** ← body (links kept inline, truncated to 600 chars), with the
@@ -20,7 +26,7 @@ on everyone's board immediately.
     dd/mm/yyyy
   - **Priority** ← detects "urgent", "asap", "important", "low priority" etc.
   - **URL** ← first http(s) link in the body
-  - **Assignees** ← you, when your mailbox email matches a Waypoint profile
+  - **Assignees** ← you (your Waypoint profile)
 - The rest of the form matches Waypoint 3.0's New project form:
   - **Status** — Planning, Active, On hold, Completed or Cancelled (new
     projects start Active, as in the app).
@@ -34,7 +40,8 @@ on everyone's board immediately.
   - **Request review** — pick from the designers flagged as reviewers.
     Waypoint's `notifyReviewerAssigned` Cloud Function emails each one a link
     to the project.
-- **Add project** writes the project to Firestore flagged `source: "outlook"`,
+- **Add project** writes the project to Firestore flagged `source: "outlook"`
+  and stamped `updatedBy: <your uid>`, as the app does on every save,
   then shows a confirmation with the title, team, status and due date, an
   **Open in Waypoint** button that deep-links to the project
   (`?project=<id>`), and a way back to the form to add another project from
@@ -48,20 +55,26 @@ on everyone's board immediately.
 
 ```
 Outlook (Win/Mac/Web) ─▶ Office.js ─▶ task pane (this add-in)
-                                          │  Firebase Anonymous Auth
+                                          │  Firebase Auth (email + password)
                                           ▼
                                  Firestore (wtg-waypoint)  ◀── Waypoint React app
-                                  /designers   read
+                                  /designers   read (incl. your own profile)
                                   /workspaces  read
                                   /socialConfig/default  read (content types)
                                   /projects    write one document
 ```
 
-The add-in signs in anonymously on every load (the task pane has no stored
-session), reads the team, workspace and Types & tags lists, and writes one
-project document. Firestore rules require any signed-in user, so Anonymous
-sign-in must stay enabled on the Firebase project. The Firebase web config in
-`src/firebase.ts` is a public project identifier, not a secret.
+The add-in signs in with the same email/password accounts as the Waypoint
+app. Auth state is kept in browser local storage (falling back to IndexedDB,
+then memory if the Office iframe blocks storage), so people stay signed in
+between task-pane loads. Once signed in it reads `/designers/{uid}`: the
+Firestore rules only let *approved members* (a non-anonymous user with that
+profile) read or write, and always let a user read their own profile, so a
+missing document means "not approved yet" rather than an error. Members then
+get the team, workspace and Types & tags lists, and the add-in writes one
+project document. Anonymous sign-in is no longer used; a leftover anonymous
+session is signed out on load. The Firebase web config in `src/firebase.ts` is
+a public project identifier, not a secret.
 
 Keep `src/types.ts` in step with `waypoint/src/types.ts` and
 `waypoint/src/constants.ts` (`BRANDS`, `SEED_WORKSPACES`, `CONTENT_TYPES`,
@@ -123,9 +136,13 @@ viewing an email. Click it → the form pre-fills from the message → submit.
 - The manifest has a schema issue. Run `npm run manifest:validate` and fix
   anything it flags.
 
-**"Missing or insufficient permissions"** in the pane — Anonymous sign-in has
-been disabled on the Firebase project, or the Firestore rules changed. Both
-are managed in the Firebase console for `wtg-waypoint`.
+**"Your Waypoint account hasn't been approved yet"** after signing in — the
+account exists but has no `/designers/{uid}` profile. A Waypoint admin
+needs to approve it in Waypoint; then reopen the pane.
+
+**"Missing or insufficient permissions"** in the pane — the Firestore rules
+changed, or the signed-in member's profile was removed. Rules are managed in
+the Firebase console for `wtg-waypoint`.
 
 ## Deploying to GitHub Pages
 
@@ -147,9 +164,9 @@ centralised deployment across the tenant. Outlook caches the task pane; bump
 | `manifest.xml` | Templated Office Add-in manifest. `{{BASE_URL}}` is replaced by `scripts/build-manifest.mjs`. |
 | `index.html` | Task pane markup. Loads Office.js, the DM Sans / DM Mono fonts and `src/main.ts`. |
 | `commands.html` | Required by the manifest's `FunctionFile`; currently a no-op. |
-| `src/main.ts` | UI controller — pre-fills the form, renders the chip pickers, submits or hands off to Waypoint. |
+| `src/main.ts` | UI controller — sign-in / not-approved / form views, pre-fills the form, renders the chip pickers, submits. |
 | `src/email.ts` | Reads the current Outlook message and best-effort parses dates, priority and brand. |
-| `src/firebase.ts` | Firebase app + anonymous sign-in. |
+| `src/firebase.ts` | Firebase app, email/password sign-in, sign-out, password reset and the approved-member check. |
 | `src/firestore.ts` | Reads designers, workspaces and Types & tags; writes the project. |
 | `src/linkify.ts` | Mirror of the app's link detection, for the overview's link preview. |
 | `src/types.ts` | Mirror of Waypoint's `Project`, `Designer`, `Workspace` types and constants. |
@@ -161,8 +178,8 @@ centralised deployment across the tenant. Outlook caches the task pane; bump
 
 ## Privacy / security note
 
-The add-in holds no credentials: it authenticates to Firebase anonymously and
-relies on the Firestore rules, which let any signed-in user read the team lists
-and write projects. That's the same trust model as the main app for a small
-internal team; tighten the rules (and this add-in's auth) before opening
-Waypoint to anyone outside it.
+The add-in holds no credentials of its own: each person signs in with their
+Waypoint account, and Firebase Auth keeps the session in the task pane's
+browser storage. Access is enforced by the Firestore rules, which let only
+approved members (a non-anonymous user with a `/designers/{uid}` profile) read
+the team lists and write projects, the same trust model as the main app.
