@@ -1,5 +1,6 @@
 import "./styles.css";
-import { ensureSignedIn } from "./firebase";
+import type { User } from "firebase/auth";
+import { isApprovedMember, observeAuth, resetPassword, signIn, signOut } from "./firebase";
 import {
   addProject,
   loadDesigners,
@@ -27,9 +28,17 @@ let designers: Designer[] = [];
 let workspaces: Workspace[] = [];
 let contentTypeOptions: string[] = [...CONTENT_TYPES];
 let email: EmailContext | null = null;
-// The signed-in Outlook user as a Waypoint designer, if their mailbox email
-// matches a designer's `email` (or, failing that, their name).
+// The signed-in user as a Waypoint designer: their /designers/{uid} profile,
+// or failing that the designer whose `email` (or name) matches.
 let me: Designer | null = null;
+
+// Auth. `formReadyFor` is the uid the form's lists were loaded for, so a
+// token refresh doesn't reload them; `authSeq` drops the result of an auth
+// check that a newer auth change has overtaken.
+let formReadyFor: string | null = null;
+let authSeq = 0;
+// An error to show on the sign-in view once the sign-out it caused settles.
+let signInNotice: string | null = null;
 
 // Multi-value fields live here rather than in a <select multiple>, which is
 // near-unusable with a mouse. The chips in the DOM are rendered from these.
@@ -40,14 +49,151 @@ let contentTypes: string[] = [];
 Office.onReady(() => {
   applyOfficeTheme();
   bindUi();
-  void boot();
+  showView("loading");
+  // Fires straight away with the remembered user (or null), then on every
+  // sign-in and sign-out.
+  observeAuth((user) => void onAuthChange(user));
 });
 
+// ── Auth ────────────────────────────────────────────────────────────────
+// Only approved members can use the add-in: a signed-in email/password user
+// with a profile at /designers/{uid}. Everyone else sees the sign-in view,
+// or the "not approved yet" view once signed in.
+async function onAuthChange(user: User | null) {
+  const seq = ++authSeq;
+  if (!user) {
+    formReadyFor = null;
+    me = null;
+    showSignIn(signInNotice);
+    signInNotice = null;
+    return;
+  }
+  // A session left over from when the add-in signed in anonymously. Those
+  // users can't read anything any more, so clear it and ask for a sign-in.
+  if (user.isAnonymous) {
+    await signOut().catch(() => undefined);
+    return;
+  }
+
+  setLoading("Signing in…");
+  showView("loading");
+  let approved: boolean;
+  try {
+    approved = await isApprovedMember(user);
+  } catch (err) {
+    if (seq !== authSeq) return;
+    if (errorCode(err) === "permission-denied") {
+      approved = false;
+    } else {
+      signInNotice = `Couldn't check your Waypoint access. ${friendlyAuthError(err)}`;
+      await signOut().catch(() => undefined);
+      return;
+    }
+  }
+  if (seq !== authSeq) return;
+
+  if (!approved) {
+    showPending(user);
+    return;
+  }
+  el("form-email").textContent = user.email ?? "";
+  if (formReadyFor === user.uid) {
+    showView("form");
+    return;
+  }
+  await boot(user, seq);
+}
+
+function showSignIn(error: string | null = null) {
+  const emailInput = el<HTMLInputElement>("si-email");
+  // First visit: offer the Outlook mailbox address, which is usually the
+  // Waypoint sign-in too.
+  if (!emailInput.value) {
+    emailInput.value = Office.context?.mailbox?.userProfile?.emailAddress ?? "";
+  }
+  setVal("si-password", "");
+  setSignInStatus(null);
+  setSignInError(error);
+  setSigningIn(false);
+  showView("signin");
+  (emailInput.value ? el<HTMLInputElement>("si-password") : emailInput).focus();
+}
+
+function showPending(user: User) {
+  el("pending-email").textContent = user.email ?? "";
+  el("pending-error").classList.add("hidden");
+  showView("pending");
+}
+
+async function onSignIn(e: Event) {
+  e.preventDefault();
+  const emailAddr = getVal("si-email").trim();
+  const password = getVal("si-password");
+  setSignInStatus(null);
+  if (!emailAddr) {
+    setSignInError("Enter your work email.");
+    el("si-email").focus();
+    return;
+  }
+  if (!password) {
+    setSignInError("Enter your password.");
+    el("si-password").focus();
+    return;
+  }
+  setSignInError(null);
+  setSigningIn(true);
+  try {
+    // Success hands over to onAuthChange through the auth observer.
+    await signIn(emailAddr, password);
+  } catch (err) {
+    setSignInError(friendlyAuthError(err));
+    setSigningIn(false);
+  }
+}
+
+async function onForgotPassword() {
+  const emailAddr = getVal("si-email").trim();
+  setSignInStatus(null);
+  if (!emailAddr) {
+    setSignInError("Enter your work email above, then choose Forgot password.");
+    el("si-email").focus();
+    return;
+  }
+  setSignInError(null);
+  const btn = el<HTMLButtonElement>("si-forgot");
+  btn.disabled = true;
+  try {
+    await resetPassword(emailAddr);
+    setSignInStatus(
+      `If ${emailAddr} has a Waypoint account, a password reset link is on its way. Check your inbox.`,
+    );
+  } catch (err) {
+    setSignInError(friendlyAuthError(err));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function onSignOut() {
+  try {
+    await signOut();
+  } catch (err) {
+    const msg = friendlyAuthError(err);
+    if (!el("view-pending").classList.contains("hidden")) {
+      const node = el("pending-error");
+      node.textContent = msg;
+      node.classList.remove("hidden");
+    } else {
+      showFormError(msg);
+    }
+  }
+}
+
 // ── Boot ────────────────────────────────────────────────────────────────
-async function boot() {
+async function boot(user: User, seq: number) {
+  setLoading("Reading the email…");
   showView("loading");
   try {
-    await ensureSignedIn();
     // The Types & tags document is optional: if it isn't there (or can't be
     // read) the picker shows the built-in list, like the main app does.
     const [ds, ws, cfg, ctx] = await Promise.all([
@@ -62,8 +208,10 @@ async function boot() {
       cfg?.contentTypes && cfg.contentTypes.length > 0
         ? cfg.contentTypes
         : [...CONTENT_TYPES];
+    if (seq !== authSeq) return;
     email = ctx;
-    me = findMe(designers);
+    me = findMe(designers, user);
+    formReadyFor = user.uid;
     fillForm(ctx);
     // Dev server only: https://localhost:3000/waypoint-outlook-addin/#preview-done
     // shows the confirmation view with sample data. Vite drops this in builds.
@@ -80,19 +228,25 @@ async function boot() {
     }
     showView("form");
   } catch (err) {
+    if (seq !== authSeq) return;
     showFormError(formatError(err));
     showView("form");
   }
 }
 
-// Match the Outlook user to a designer. Designers carry their sign-in email
-// since Waypoint 2, so that's the reliable key; the name heuristic is kept
-// for profiles created before the field existed.
-function findMe(ds: Designer[]): Designer | null {
-  const myEmail = Office.context?.mailbox?.userProfile?.emailAddress?.toLowerCase();
-  if (!myEmail) return null;
-  const byEmail = ds.find((d) => d.email?.toLowerCase() === myEmail);
+// Match the signed-in user to a designer. An approved member's profile lives
+// at /designers/{uid}, so that's checked first; then the sign-in email and
+// the Outlook mailbox email; the name heuristic (on the mailbox address) is
+// kept for profiles created before designers carried an email.
+function findMe(ds: Designer[], user: User): Designer | null {
+  const byUid = ds.find((d) => d.id === user.uid);
+  if (byUid) return byUid;
+  const mailbox = Office.context?.mailbox?.userProfile?.emailAddress?.toLowerCase();
+  const emails = [user.email?.toLowerCase(), mailbox].filter((e): e is string => !!e);
+  const byEmail = ds.find((d) => !!d.email && emails.includes(d.email.toLowerCase()));
   if (byEmail) return byEmail;
+  const myEmail = mailbox ?? emails[0];
+  if (!myEmail) return null;
   const handle = myEmail.split("@")[0].replace(/[._-]/g, " ");
   return ds.find((d) => d.name.toLowerCase() === handle) ?? null;
 }
@@ -111,6 +265,17 @@ function visibleWorkspaces(): Workspace[] {
 
 // ── UI wiring ───────────────────────────────────────────────────────────
 function bindUi() {
+  el("signin-form").addEventListener("submit", (e) => void onSignIn(e));
+  el("si-forgot").addEventListener("click", () => void onForgotPassword());
+  el("form-signout").addEventListener("click", () => void onSignOut());
+  el("pending-signout").addEventListener("click", () => void onSignOut());
+  const pendingOpen = el<HTMLAnchorElement>("pending-open");
+  pendingOpen.href = WAYPOINT_APP_URL;
+  pendingOpen.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternal(WAYPOINT_APP_URL);
+  });
+
   el("form-reset").addEventListener("click", () => {
     if (email) fillForm(email);
   });
@@ -500,10 +665,35 @@ function setSubmitting(busy: boolean) {
   btn.textContent = busy ? "Adding…" : "Add project";
 }
 
-function showView(name: "loading" | "form" | "done") {
-  ["loading", "form", "done"].forEach((n) => {
+type View = "loading" | "signin" | "pending" | "form" | "done";
+
+function showView(name: View) {
+  (["loading", "signin", "pending", "form", "done"] as View[]).forEach((n) => {
     document.getElementById(`view-${n}`)?.classList.toggle("hidden", n !== name);
   });
+}
+
+function setLoading(text: string) {
+  el("loading-text").textContent = text;
+}
+
+function setSigningIn(busy: boolean) {
+  const btn = el<HTMLButtonElement>("si-submit");
+  btn.disabled = busy;
+  btn.textContent = busy ? "Signing in…" : "Sign in";
+  el<HTMLButtonElement>("si-forgot").disabled = busy;
+}
+
+function setSignInError(msg: string | null) {
+  const node = el("si-error");
+  node.classList.toggle("hidden", !msg);
+  node.textContent = msg ?? "";
+}
+
+function setSignInStatus(msg: string | null) {
+  const node = el("si-status");
+  node.classList.toggle("hidden", !msg);
+  node.textContent = msg ?? "";
 }
 
 function showFormError(msg: string | null) {
@@ -596,4 +786,31 @@ function todayISO(): string {
 }
 function formatError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+function errorCode(err: unknown): string | null {
+  return err && typeof err === "object" && "code" in err
+    ? String((err as { code: unknown }).code)
+    : null;
+}
+// Firebase errors in plain words; anything else falls through as is.
+function friendlyAuthError(err: unknown): string {
+  switch (errorCode(err)) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "Email or password is incorrect.";
+    case "auth/invalid-email":
+      return "That doesn't look like a valid email.";
+    case "auth/missing-password":
+      return "Enter your password.";
+    case "auth/user-disabled":
+      return "This account has been disabled. Ask a Waypoint admin for help.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Wait a minute, then try again.";
+    case "auth/network-request-failed":
+    case "unavailable":
+      return "Can't reach Waypoint. Check your connection and try again.";
+    default:
+      return formatError(err);
+  }
 }

@@ -22,10 +22,49 @@
       </header>
 
       <main id="view-loading" class="view">
-        <p class="loading">Reading the email…</p>
+        <p id="loading-text" class="loading">Signing in…</p>
+      </main>
+
+      <main id="view-signin" class="view auth hidden">
+        <div class="auth-intro">
+          <h2 class="auth-title">Sign in to Waypoint</h2>
+          <p class="auth-note">Use the work email and password you use for Waypoint.</p>
+        </div>
+        <form id="signin-form" class="auth-form" novalidate>
+          <label class="field">
+            <span>Work email</span>
+            <input id="si-email" type="email" autocomplete="username" inputmode="email" required />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input id="si-password" type="password" autocomplete="current-password" required />
+          </label>
+          <p id="si-status" class="banner hidden" role="status"></p>
+          <p id="si-error" class="error hidden" role="alert"></p>
+          <button id="si-submit" type="submit" class="primary">Sign in</button>
+          <button id="si-forgot" type="button" class="link-button">Forgot password?</button>
+        </form>
+      </main>
+
+      <main id="view-pending" class="view auth hidden">
+        <div class="auth-intro">
+          <h2 class="auth-title">Not approved yet</h2>
+          <p class="auth-note">
+            Your Waypoint account hasn't been approved yet. Request access or check its status in Waypoint.
+          </p>
+          <p class="account-line">Signed in as <span id="pending-email" class="account-email"></span></p>
+        </div>
+        <p id="pending-error" class="error hidden" role="alert"></p>
+        <a id="pending-open" class="primary button" href="#" target="_blank" rel="noreferrer">Open Waypoint</a>
+        <button id="pending-signout" type="button" class="ghost">Sign out</button>
       </main>
 
       <main id="view-form" class="view hidden">
+        <p class="account-line">
+          Signed in as <span id="form-email" class="account-email"></span>
+          <span aria-hidden="true">·</span>
+          <button id="form-signout" type="button" class="link-button">Sign out</button>
+        </p>
         <p id="form-banner" class="banner hidden" role="status"></p>
 
         <label class="field">

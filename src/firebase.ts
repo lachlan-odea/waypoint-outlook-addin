@@ -1,15 +1,21 @@
 import { initializeApp } from "firebase/app";
 import {
-  getAuth,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
+  inMemoryPersistence,
+  initializeAuth,
   onAuthStateChanged,
-  signInAnonymously,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut as fbSignOut,
   type User,
 } from "firebase/auth";
-import { initializeFirestore } from "firebase/firestore";
+import { doc, getDoc, initializeFirestore } from "firebase/firestore";
 
 // Same wtg-waypoint project as the main Waypoint app. The web `apiKey` is a
 // public project identifier (not a secret); access is gated by Firestore
-// rules + Anonymous Auth.
+// rules, which only let approved members in: a signed-in email/password user
+// with a profile at /designers/{uid}.
 const firebaseConfig = {
   apiKey: "AIzaSyCCeatk1Bv-GwlZOnp_NQgRrMBTLgQNH1o",
   authDomain: "wtg-waypoint.firebaseapp.com",
@@ -27,30 +33,35 @@ export const db = initializeFirestore(firebaseApp, {
   ignoreUndefinedProperties: true,
 });
 
-export const auth = getAuth(firebaseApp);
+// Keep people signed in between task-pane loads. Firebase tries each
+// persistence in order and silently settles on the first one the Office
+// iframe allows; if storage is blocked entirely it falls back to memory, and
+// the user simply signs in again next time the pane opens.
+export const auth = initializeAuth(firebaseApp, {
+  persistence: [browserLocalPersistence, indexedDBLocalPersistence, inMemoryPersistence],
+});
 
-// Resolves once we have an authenticated user. Office add-in iframes have no
-// stored session, so we sign in anonymously on every load.
-export function ensureSignedIn(): Promise<User> {
-  return new Promise((resolve, reject) => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        if (user) {
-          unsubscribe();
-          resolve(user);
-        }
-      },
-      (err) => {
-        unsubscribe();
-        reject(err);
-      },
-    );
-    if (!auth.currentUser) {
-      signInAnonymously(auth).catch((err) => {
-        unsubscribe();
-        reject(err);
-      });
-    }
-  });
+// Fires immediately with the restored user (or null), then on every change.
+export function observeAuth(cb: (user: User | null) => void): () => void {
+  return onAuthStateChanged(auth, cb);
+}
+
+export function signIn(email: string, password: string): Promise<User> {
+  return signInWithEmailAndPassword(auth, email.trim(), password).then((c) => c.user);
+}
+
+export function signOut(): Promise<void> {
+  return fbSignOut(auth);
+}
+
+export function resetPassword(email: string): Promise<void> {
+  return sendPasswordResetEmail(auth, email.trim());
+}
+
+// An approved member has a profile at /designers/{uid}. The rules always let
+// a user read their own profile, so a missing document means "signed in but
+// not approved yet" rather than an error.
+export async function isApprovedMember(user: User): Promise<boolean> {
+  const snap = await getDoc(doc(db, "designers", user.uid));
+  return snap.exists();
 }

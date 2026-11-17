@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import type { Designer, Project, SocialConfig, Workspace } from "./types";
 
 // Same collections the main app reads and writes (waypoint/src/firestore.ts).
@@ -26,6 +26,10 @@ export async function loadSocialConfig(): Promise<SocialConfig | null> {
   return snap.exists() ? (snap.data() as SocialConfig) : null;
 }
 
+// Stamps the signed-in user's uid as `updatedBy`, as the main app does on
+// every project save, so the notification Cloud Functions leave out whoever
+// made the change.
 export async function addProject(project: Project): Promise<void> {
-  await setDoc(doc(projectsCol(), project.id), project);
+  const uid = auth.currentUser?.uid;
+  await setDoc(doc(projectsCol(), project.id), uid ? { ...project, updatedBy: uid } : project);
 }
