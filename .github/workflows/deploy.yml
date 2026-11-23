@@ -33,7 +33,10 @@ jobs:
       - name: Build site
         env:
           VITE_BASE: ${{ steps.base.outputs.PAGES_BASE }}
-        run: npm run build
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+        run: |
+          test -n "$VITE_FIREBASE_API_KEY" || { echo "::error::Repository variable VITE_FIREBASE_API_KEY is not set"; exit 1; }
+          npm run build
       - name: Build production manifest
         env:
           BASE_URL: ${{ steps.base.outputs.BASE_URL }}

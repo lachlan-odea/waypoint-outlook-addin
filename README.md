@@ -73,8 +73,9 @@ profile) read or write, and always let a user read their own profile, so a
 missing document means "not approved yet" rather than an error. Members then
 get the team, workspace and Types & tags lists, and the add-in writes one
 project document. Anonymous sign-in is no longer used; a leftover anonymous
-session is signed out on load. The Firebase web config in `src/firebase.ts` is
-a public project identifier, not a secret.
+session is signed out on load. The Firebase web API key is read from
+`VITE_FIREBASE_API_KEY` at build time (see Local development); it identifies
+the project and is not a secret, but it isn't kept in the repo.
 
 Keep `src/types.ts` in step with `waypoint/src/types.ts` and
 `waypoint/src/constants.ts` (`BRANDS`, `SEED_WORKSPACES`, `CONTENT_TYPES`,
@@ -83,12 +84,16 @@ renders.
 
 ## Local development
 
-Prereqs: Node 20+ (CI uses 22), Outlook desktop or Outlook on the web. No
-per-user config: the add-in writes straight to the shared Firebase project
-that backs the main Waypoint app.
+Prereqs: Node 20+ (CI uses 22), Outlook desktop or Outlook on the web. The
+add-in writes straight to the shared Firebase project that backs the main
+Waypoint app, and needs that project's web API key in `.env.local`
+(git-ignored; the same value Waypoint uses). Deploys take it from the
+repository variable `VITE_FIREBASE_API_KEY` (GitHub → Settings → Secrets and
+variables → Actions → Variables).
 
 ```bash
 npm install
+cp .env.example .env.local   # then fill in VITE_FIREBASE_API_KEY
 npm run certs:install   # installs a trusted CA cert for localhost, valid for a year
 npm run manifest:dev    # writes manifest.dev.xml pointing at https://localhost:3000/waypoint-outlook-addin
 npm run dev             # starts the HTTPS dev server on :3000

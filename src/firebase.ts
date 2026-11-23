@@ -12,12 +12,20 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, initializeFirestore } from "firebase/firestore";
 
+// The web API key comes from VITE_FIREBASE_API_KEY at build time (a GitHub
+// Actions variable for deploys, .env.local for local runs; see the README),
+// so it isn't kept in this repo.
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY as string | undefined;
+if (!apiKey) {
+  throw new Error("VITE_FIREBASE_API_KEY is not set. See the README.");
+}
+
 // Same wtg-waypoint project as the main Waypoint app. The web `apiKey` is a
 // public project identifier (not a secret); access is gated by Firestore
 // rules, which only let approved members in: a signed-in email/password user
 // with a profile at /designers/{uid}.
 const firebaseConfig = {
-  apiKey: "AIzaSyCCeatk1Bv-GwlZOnp_NQgRrMBTLgQNH1o",
+  apiKey,
   authDomain: "wtg-waypoint.firebaseapp.com",
   projectId: "wtg-waypoint",
   storageBucket: "wtg-waypoint.firebasestorage.app",
